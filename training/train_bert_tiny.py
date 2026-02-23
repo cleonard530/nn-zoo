@@ -1,0 +1,90 @@
+"""Train tiny BERT on synthetic sequence classification."""
+
+import argparse
+import sys
+from pathlib import Path
+
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from data.datasets import get_dataloader, get_synthetic_sequence
+from models.bert_tiny import BertTiny
+from utils import get_device, log_epoch, save_checkpoint
+
+
+def main() -> None:
+    p = argparse.ArgumentParser()
+    p.add_argument("--epochs", type=int, default=10)
+    p.add_argument("--batch_size", type=int, default=64)
+    p.add_argument("--lr", type=float, default=1e-4)
+    p.add_argument("--seq_len", type=int, default=32)
+    p.add_argument("--vocab_size", type=int, default=128)
+    p.add_argument("--num_classes", type=int, default=10)
+    p.add_argument("--save_dir", type=str, default="./weights/bert_tiny")
+    p.add_argument("--no_cuda", action="store_true")
+    args = p.parse_args()
+    device = get_device(use_cuda=not args.no_cuda)
+
+    train_ds = get_synthetic_sequence(
+        num_samples=8000, seq_len=args.seq_len, vocab_size=args.vocab_size,
+        target_mode="class", num_classes=args.num_classes, seed=42,
+    )
+    val_ds = get_synthetic_sequence(
+        num_samples=2000, seq_len=args.seq_len, vocab_size=args.vocab_size,
+        target_mode="class", num_classes=args.num_classes, seed=43,
+    )
+    train_loader = get_dataloader(train_ds, batch_size=args.batch_size, shuffle=True)
+    val_loader = get_dataloader(val_ds, batch_size=args.batch_size, shuffle=False)
+
+    model = BertTiny(
+        vocab_size=args.vocab_size,
+        max_len=args.seq_len,
+        d_model=128,
+        num_heads=4,
+        num_layers=2,
+        d_ff=256,
+        num_classes=args.num_classes,
+    ).to(device)
+    opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    criterion = nn.CrossEntropyLoss()
+
+    best_acc = 0.0
+    for epoch in range(1, args.epochs + 1):
+        model.train()
+        train_loss = 0.0
+        for x, y in train_loader:
+            x, y = x.to(device), y.to(device)
+            opt.zero_grad()
+            logits = model(x)
+            loss = criterion(logits, y)
+            loss.backward()
+            opt.step()
+            train_loss += loss.item()
+        train_loss /= len(train_loader)
+
+        model.eval()
+        correct, total = 0, 0
+        with torch.no_grad():
+            for x, y in val_loader:
+                x, y = x.to(device), y.to(device)
+                logits = model(x)
+                correct += (logits.argmax(1) == y).sum().item()
+                total += y.size(0)
+        val_acc = correct / total
+        log_epoch(epoch, {"train_loss": train_loss, "val_acc": val_acc})
+
+        is_best = val_acc > best_acc
+        if is_best:
+            best_acc = val_acc
+        save_checkpoint(
+            {"epoch": epoch, "model_state_dict": model.state_dict(), "val_acc": val_acc},
+            Path(args.save_dir) / "last.pt",
+            is_best=is_best,
+            best_path=Path(args.save_dir) / "best.pt",
+        )
+
+
+if __name__ == "__main__":
+    main()

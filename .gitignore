@@ -1,0 +1,25 @@
+# Data
+data/raw/
+*.csv
+
+# Weights and checkpoints
+weights/**/*.pt
+!weights/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# IDE / env
+.idea/
+.vscode/
+*.swp
+.env
+.venv/
+venv/

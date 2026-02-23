@@ -1,0 +1,8 @@
+# Core scientific stack (PyTorch with CUDA is provided by the base image)
+numpy
+scipy
+matplotlib
+# Neural net exploration repo
+torch
+torchvision
+tqdm
