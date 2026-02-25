@@ -16,9 +16,9 @@ def main() -> None:
     p.add_argument("--checkpoint", type=str, default="weights/gan/best.pt")
     p.add_argument("--latent_dim", type=int, default=64)
     p.add_argument("--num_samples", type=int, default=5)
-    p.add_argument("--no_cuda", action="store_true")
+    p.add_argument("--use_cuda", action=argparse.BooleanOptionalAction, default=True, help="Use CUDA if available")
     args = p.parse_args()
-    device = get_device(use_cuda=not args.no_cuda)
+    device = get_device(use_cuda=args.use_cuda)
 
     gan = GAN(latent_dim=args.latent_dim, image_size=784).to(device)
     state = load_checkpoint(args.checkpoint, device)

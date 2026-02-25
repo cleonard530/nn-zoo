@@ -17,9 +17,9 @@ def main() -> None:
     p.add_argument("--checkpoint", type=str, default="weights/unet/best.pt")
     p.add_argument("--data_dir", type=str, default="./data")
     p.add_argument("--num_samples", type=int, default=3)
-    p.add_argument("--no_cuda", action="store_true")
+    p.add_argument("--use_cuda", action=argparse.BooleanOptionalAction, default=True, help="Use CUDA if available")
     args = p.parse_args()
-    device = get_device(use_cuda=not args.no_cuda)
+    device = get_device(use_cuda=args.use_cuda)
 
     model = UNet(in_channels=1, out_channels=1, features=(32, 64, 128))
     load_model_weights(model, args.checkpoint, device)

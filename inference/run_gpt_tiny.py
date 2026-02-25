@@ -18,9 +18,9 @@ def main() -> None:
     p.add_argument("--seq_len", type=int, default=32)
     p.add_argument("--vocab_size", type=int, default=128)
     p.add_argument("--num_samples", type=int, default=3)
-    p.add_argument("--no_cuda", action="store_true")
+    p.add_argument("--use_cuda", action=argparse.BooleanOptionalAction, default=True, help="Use CUDA if available")
     args = p.parse_args()
-    device = get_device(use_cuda=not args.no_cuda)
+    device = get_device(use_cuda=args.use_cuda)
 
     model = GPTTiny(
         vocab_size=args.vocab_size,

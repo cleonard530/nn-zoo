@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from data.datasets import get_dataloader, get_mnist
 from models.gan import GAN
-from utils import get_device, log_epoch, save_checkpoint
+from utils import get_device, get_run_id, log_epoch, save_checkpoint, save_training_metadata
 
 
 def main() -> None:
@@ -23,9 +23,10 @@ def main() -> None:
     p.add_argument("--lr_d", type=float, default=2e-4)
     p.add_argument("--latent_dim", type=int, default=64)
     p.add_argument("--save_dir", type=str, default="./weights/gan")
-    p.add_argument("--no_cuda", action="store_true")
+    p.add_argument("--use_cuda", action=argparse.BooleanOptionalAction, default=True, help="Use CUDA if available")
     args = p.parse_args()
-    device = get_device(use_cuda=not args.no_cuda)
+    device = get_device(use_cuda=args.use_cuda)
+    run_id = get_run_id()
 
     train_ds = get_mnist(args.data_dir, train=True)
     train_loader = get_dataloader(train_ds, batch_size=args.batch_size, shuffle=True)
@@ -76,7 +77,7 @@ def main() -> None:
                 "generator_state_dict": G.state_dict(),
                 "discriminator_state_dict": D.state_dict(),
             },
-            Path(args.save_dir) / "last.pt",
+            Path(args.save_dir) / f"last_{run_id}.pt",
             is_best=False,
             best_path=None,
         )
@@ -87,10 +88,22 @@ def main() -> None:
                     "generator_state_dict": G.state_dict(),
                     "discriminator_state_dict": D.state_dict(),
                 },
-                Path(args.save_dir) / "best.pt",
+                Path(args.save_dir) / f"best_{run_id}.pt",
                 is_best=False,
                 best_path=None,
             )
+
+    save_training_metadata(
+        args.save_dir,
+        run_id,
+        args,
+        {
+            "epochs": args.epochs,
+            "final_loss_d": loss_d_avg,
+            "final_loss_g": loss_g_avg,
+        },
+        model_hp={"latent_dim": args.latent_dim, "image_size": 784},
+    )
 
 
 if __name__ == "__main__":

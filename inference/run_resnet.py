@@ -17,9 +17,9 @@ def main() -> None:
     p.add_argument("--checkpoint", type=str, default="weights/resnet/best.pt")
     p.add_argument("--data_dir", type=str, default="./data")
     p.add_argument("--num_samples", type=int, default=5)
-    p.add_argument("--no_cuda", action="store_true")
+    p.add_argument("--use_cuda", action=argparse.BooleanOptionalAction, default=True, help="Use CUDA if available")
     args = p.parse_args()
-    device = get_device(use_cuda=not args.no_cuda)
+    device = get_device(use_cuda=args.use_cuda)
 
     model = ResNet(in_channels=3, num_classes=10, num_blocks=(2, 2, 2, 2))
     load_model_weights(model, args.checkpoint, device)

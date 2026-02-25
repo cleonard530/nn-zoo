@@ -4,6 +4,7 @@ data/raw/
 
 # Weights and checkpoints
 weights/**/*.pt
+weights/**/*.txt
 !weights/.gitkeep
 
 # Saved plots

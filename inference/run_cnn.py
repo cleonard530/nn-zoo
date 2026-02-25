@@ -9,7 +9,7 @@ import torch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from data.datasets import get_cifar10, get_mnist
 from models.cnn import CNN
-from utils import get_device, load_model_weights
+from utils import get_device, load_model_weights, plot_results
 
 
 def main() -> None:
@@ -18,9 +18,10 @@ def main() -> None:
     p.add_argument("--data_dir", type=str, default="./data")
     p.add_argument("--cifar", action="store_true")
     p.add_argument("--num_samples", type=int, default=5)
-    p.add_argument("--no_cuda", action="store_true")
+    p.add_argument("--use_cuda", action=argparse.BooleanOptionalAction, default=True, help="Use CUDA if available")
+    p.add_argument("--plot_dir", type=str, default="plots", help="Directory to save inference plots")
     args = p.parse_args()
-    device = get_device(use_cuda=not args.no_cuda)
+    device = get_device(use_cuda=args.use_cuda)
 
     if args.cifar:
         test_ds = get_cifar10(args.data_dir, train=False)
@@ -31,13 +32,19 @@ def main() -> None:
     load_model_weights(model, args.checkpoint, device)
     model.eval()
 
-    for i in range(min(args.num_samples, len(test_ds))):
+    n = min(args.num_samples, len(test_ds))
+    results = []
+    for i in range(n):
         x, y_true = test_ds[i]
-        x = x.unsqueeze(0).to(device)
+        x_batch = x.unsqueeze(0).to(device)
         with torch.no_grad():
-            logits = model(x)
+            logits = model(x_batch)
         pred = logits.argmax(1).item()
         print(f"Sample {i}: true={y_true}, pred={pred}")
+        results.append((x, y_true, pred))
+
+    if n < 26:
+        plot_results(n, results, args, "cnn")
 
 
 if __name__ == "__main__":

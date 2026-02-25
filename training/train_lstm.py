@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from data.datasets import get_dataloader, get_synthetic_sequence
 from models.lstm import LSTM
-from utils import get_device, log_epoch, save_checkpoint
+from utils import get_device, get_run_id, log_epoch, save_checkpoint, save_training_metadata
 
 
 def main() -> None:
@@ -24,9 +24,10 @@ def main() -> None:
     p.add_argument("--num_classes", type=int, default=10)
     p.add_argument("--mode", type=str, default="classify", choices=["classify", "predict"])
     p.add_argument("--save_dir", type=str, default="./weights/lstm")
-    p.add_argument("--no_cuda", action="store_true")
+    p.add_argument("--use_cuda", action=argparse.BooleanOptionalAction, default=True, help="Use CUDA if available")
     args = p.parse_args()
-    device = get_device(use_cuda=not args.no_cuda)
+    device = get_device(use_cuda=args.use_cuda)
+    run_id = get_run_id()
 
     target_mode = "class" if args.mode == "classify" else "next_token"
     train_ds = get_synthetic_sequence(
@@ -100,10 +101,19 @@ def main() -> None:
 
         save_checkpoint(
             {"epoch": epoch, "model_state_dict": model.state_dict(), "val_metric": val_metric},
-            Path(args.save_dir) / "last.pt",
+            Path(args.save_dir) / f"last_{run_id}.pt",
             is_best=is_best,
-            best_path=Path(args.save_dir) / "best.pt",
+            best_path=Path(args.save_dir) / f"best_{run_id}.pt",
         )
+
+    metric_name = "val_acc" if args.mode == "classify" else "val_loss"
+    save_training_metadata(
+        args.save_dir,
+        run_id,
+        args,
+        {"epochs": args.epochs, f"best_{metric_name}": best_metric, f"final_{metric_name}": val_metric},
+        model_hp={"vocab_size": args.vocab_size, "embed_dim": 64, "hidden_size": 128, "num_layers": 2, "num_classes": args.num_classes, "mode": args.mode},
+    )
 
 
 if __name__ == "__main__":

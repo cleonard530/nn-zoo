@@ -19,9 +19,9 @@ def main() -> None:
     p.add_argument("--latent_dim", type=int, default=20)
     p.add_argument("--num_samples", type=int, default=3)
     p.add_argument("--sample_prior", type=int, default=0, help="Number of images to generate from prior")
-    p.add_argument("--no_cuda", action="store_true")
+    p.add_argument("--use_cuda", action=argparse.BooleanOptionalAction, default=True, help="Use CUDA if available")
     args = p.parse_args()
-    device = get_device(use_cuda=not args.no_cuda)
+    device = get_device(use_cuda=args.use_cuda)
 
     model = VAE(input_size=784, latent_dim=args.latent_dim)
     load_model_weights(model, args.checkpoint, device)

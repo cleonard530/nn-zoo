@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from data.datasets import get_dataloader, get_synthetic_sequence
 from models.bert_tiny import BertTiny
-from utils import get_device, log_epoch, save_checkpoint
+from utils import get_device, get_run_id, log_epoch, save_checkpoint, save_training_metadata
 
 
 def main() -> None:
@@ -23,9 +23,10 @@ def main() -> None:
     p.add_argument("--vocab_size", type=int, default=128)
     p.add_argument("--num_classes", type=int, default=10)
     p.add_argument("--save_dir", type=str, default="./weights/bert_tiny")
-    p.add_argument("--no_cuda", action="store_true")
+    p.add_argument("--use_cuda", action=argparse.BooleanOptionalAction, default=True, help="Use CUDA if available")
     args = p.parse_args()
-    device = get_device(use_cuda=not args.no_cuda)
+    device = get_device(use_cuda=args.use_cuda)
+    run_id = get_run_id()
 
     train_ds = get_synthetic_sequence(
         num_samples=8000, seq_len=args.seq_len, vocab_size=args.vocab_size,
@@ -80,10 +81,18 @@ def main() -> None:
             best_acc = val_acc
         save_checkpoint(
             {"epoch": epoch, "model_state_dict": model.state_dict(), "val_acc": val_acc},
-            Path(args.save_dir) / "last.pt",
+            Path(args.save_dir) / f"last_{run_id}.pt",
             is_best=is_best,
-            best_path=Path(args.save_dir) / "best.pt",
+            best_path=Path(args.save_dir) / f"best_{run_id}.pt",
         )
+
+    save_training_metadata(
+        args.save_dir,
+        run_id,
+        args,
+        {"epochs": args.epochs, "best_val_acc": best_acc, "final_val_acc": val_acc},
+        model_hp={"vocab_size": args.vocab_size, "max_len": args.seq_len, "d_model": 128, "num_heads": 4, "num_layers": 2, "num_classes": args.num_classes},
+    )
 
 
 if __name__ == "__main__":
