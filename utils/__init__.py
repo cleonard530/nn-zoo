@@ -3,5 +3,6 @@
 from utils.checkpoint import load_checkpoint, load_model_weights, save_checkpoint
 from utils.device import get_device
 from utils.logging import log_epoch
+from utils.metrics import validation_accuracy
 from utils.plotting import plot_results
 from utils.training_meta import get_run_id, save_training_metadata

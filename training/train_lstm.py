@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from data.datasets import get_dataloader, get_synthetic_sequence
 from models.lstm import LSTM
-from utils import get_device, get_run_id, log_epoch, save_checkpoint, save_training_metadata
+from utils import get_device, get_run_id, log_epoch, save_checkpoint, save_training_metadata, validation_accuracy
 
 
 def main() -> None:
@@ -74,14 +74,7 @@ def main() -> None:
 
         model.eval()
         if args.mode == "classify":
-            correct, total = 0, 0
-            with torch.no_grad():
-                for x, y in val_loader:
-                    x, y = x.to(device), y.to(device)
-                    out = model(x)
-                    correct += (out.argmax(1) == y).sum().item()
-                    total += y.size(0)
-            val_metric = correct / total
+            val_metric = validation_accuracy(model, val_loader, device)
             log_epoch(epoch, {"train_loss": train_loss, "val_acc": val_metric})
             is_best = val_metric > best_metric
             if is_best:

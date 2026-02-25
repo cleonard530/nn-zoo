@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from data.datasets import get_dataloader, get_synthetic_sequence
 from models.bert_tiny import BertTiny
-from utils import get_device, get_run_id, log_epoch, save_checkpoint, save_training_metadata
+from utils import get_device, get_run_id, log_epoch, save_checkpoint, save_training_metadata, validation_accuracy
 
 
 def main() -> None:
@@ -65,15 +65,7 @@ def main() -> None:
             train_loss += loss.item()
         train_loss /= len(train_loader)
 
-        model.eval()
-        correct, total = 0, 0
-        with torch.no_grad():
-            for x, y in val_loader:
-                x, y = x.to(device), y.to(device)
-                logits = model(x)
-                correct += (logits.argmax(1) == y).sum().item()
-                total += y.size(0)
-        val_acc = correct / total
+        val_acc = validation_accuracy(model, val_loader, device)
         log_epoch(epoch, {"train_loss": train_loss, "val_acc": val_acc})
 
         is_best = val_acc > best_acc
