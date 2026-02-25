@@ -14,7 +14,6 @@ def _default_mnist_transform(train: bool) -> transforms.Compose:
     return transforms.Compose(
         [
             transforms.ToTensor(),
-            transforms.Normalize((0.1307,), (0.3081,)),
         ]
     )
 

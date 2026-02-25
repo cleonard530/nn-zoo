@@ -6,6 +6,11 @@ data/raw/
 weights/**/*.pt
 !weights/.gitkeep
 
+# Saved plots
+plots/*.png
+plots/*.pdf
+!plots/.gitkeep
+
 # Python
 __pycache__/
 *.py[cod]
