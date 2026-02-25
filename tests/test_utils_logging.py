@@ -1,8 +1,8 @@
-"""Tests for utils.logging."""
+"""Tests for epoch logging (utils.training)."""
 
 from pathlib import Path
 
-from utils.logging import log_epoch
+from utils import log_epoch
 
 
 def test_log_epoch_creates_csv_when_log_file_given(tmp_path: Path, capsys: object) -> None:

@@ -5,7 +5,9 @@
     "context": ".."
   },
   "runArgs": ["--device", "nvidia.com/gpu=3"],
-  "copyGitConfig": false,
+  "mounts": [
+    "type=bind,source=${localEnv:HOME}/.gitconfig,target=/root/.gitconfig,consistency=cached"
+  ],
   "customizations": {
     "vscode": {
       "extensions": [

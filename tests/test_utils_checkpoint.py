@@ -1,4 +1,4 @@
-"""Tests for utils.checkpoint."""
+"""Tests for checkpoint and model load/save (utils.io)."""
 
 from pathlib import Path
 
@@ -6,7 +6,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from utils.checkpoint import load_checkpoint, load_model_weights, save_checkpoint
+from utils import load_checkpoint, load_model_weights, save_checkpoint, save_epoch_checkpoint
 
 
 class _TinyModel(nn.Module):
@@ -23,6 +23,19 @@ def test_save_checkpoint_creates_file(tmp_path: Path) -> None:
     path = tmp_path / "sub" / "ckpt.pt"
     save_checkpoint(state, path)
     assert path.exists()
+
+
+def test_save_epoch_checkpoint_creates_last_and_best(tmp_path: Path, device: torch.device) -> None:
+    model = _TinyModel()
+    save_epoch_checkpoint(model, epoch=1, metric_value=0.9, metric_key="val_acc", save_dir=tmp_path, run_id="2025_01_01_00_00_00", is_best=True)
+    last_path = tmp_path / "last_2025_01_01_00_00_00.pt"
+    best_path = tmp_path / "best_2025_01_01_00_00_00.pt"
+    assert last_path.exists()
+    assert best_path.exists()
+    state = load_checkpoint(last_path, device)
+    assert state["epoch"] == 1
+    assert state["val_acc"] == 0.9
+    assert "model_state_dict" in state
 
 
 def test_save_checkpoint_is_best_creates_best_path(tmp_path: Path) -> None:

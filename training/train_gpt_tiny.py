@@ -11,18 +11,14 @@ from torch.utils.data import DataLoader
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from data.datasets import get_dataloader, get_synthetic_sequence
 from models.gpt_tiny import GPTTiny
-from utils import get_device, get_run_id, log_epoch, save_checkpoint, save_training_metadata
+from utils import add_common_train_args, get_device, get_run_id, log_epoch, save_epoch_checkpoint, save_training_metadata, train_epoch, validation_loss
 
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--epochs", type=int, default=10)
-    p.add_argument("--batch_size", type=int, default=64)
-    p.add_argument("--lr", type=float, default=1e-4)
+    add_common_train_args(p, include_data_dir=False, default_save_dir="./weights/gpt_tiny", default_epochs=10, default_batch_size=64, default_lr=1e-4)
     p.add_argument("--seq_len", type=int, default=32)
     p.add_argument("--vocab_size", type=int, default=128)
-    p.add_argument("--save_dir", type=str, default="./weights/gpt_tiny")
-    p.add_argument("--use_cuda", action=argparse.BooleanOptionalAction, default=True, help="Use CUDA if available")
     args = p.parse_args()
     device = get_device(use_cuda=args.use_cuda)
     run_id = get_run_id()
@@ -49,39 +45,25 @@ def main() -> None:
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
     criterion = nn.CrossEntropyLoss()
 
+    def loss_fn(m, batch, dev):
+        x, y = batch[0].to(dev), batch[1].to(dev)
+        logits = m(x)
+        return criterion(logits.view(-1, args.vocab_size), y.view(-1))
+
     best_loss = float("inf")
     for epoch in range(1, args.epochs + 1):
-        model.train()
-        train_loss = 0.0
-        for x, y in train_loader:
-            x, y = x.to(device), y.to(device)
-            opt.zero_grad()
-            logits = model(x)
-            loss = criterion(logits.view(-1, args.vocab_size), y.view(-1))
-            loss.backward()
-            opt.step()
-            train_loss += loss.item()
-        train_loss /= len(train_loader)
-
-        model.eval()
-        val_loss = 0.0
-        with torch.no_grad():
-            for x, y in val_loader:
-                x, y = x.to(device), y.to(device)
-                logits = model(x)
-                val_loss += criterion(logits.view(-1, args.vocab_size), y.view(-1)).item()
-        val_loss /= len(val_loader)
+        train_loss = train_epoch(model, train_loader, device, opt, loss_fn)
+        def batch_loss(m, batch, dev):
+            x, y = batch[0].to(dev), batch[1].to(dev)
+            logits = m(x)
+            return criterion(logits.view(-1, args.vocab_size), y.view(-1))
+        val_loss = validation_loss(model, val_loader, device, batch_loss)
         log_epoch(epoch, {"train_loss": train_loss, "val_loss": val_loss})
 
         is_best = val_loss < best_loss
         if is_best:
             best_loss = val_loss
-        save_checkpoint(
-            {"epoch": epoch, "model_state_dict": model.state_dict(), "val_loss": val_loss},
-            Path(args.save_dir) / f"last_{run_id}.pt",
-            is_best=is_best,
-            best_path=Path(args.save_dir) / f"best_{run_id}.pt",
-        )
+        save_epoch_checkpoint(model, epoch, val_loss, "val_loss", args.save_dir, run_id, is_best)
 
     save_training_metadata(
         args.save_dir,

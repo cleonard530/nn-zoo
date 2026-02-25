@@ -1,11 +1,11 @@
-"""Tests for utils.plotting."""
+"""Tests for inference plotting (utils.plotting)."""
 
 from pathlib import Path
 from types import SimpleNamespace
 
 import torch
 
-from utils.plotting import plot_results
+from utils import plot_results
 
 
 def test_plot_results_saves_file(tmp_plot_dir: Path) -> None:

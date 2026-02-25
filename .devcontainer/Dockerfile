@@ -6,6 +6,7 @@ FROM fedora:41
 # Note: Fedora 41 has no python3.12-pip package; we use ensurepip below
 RUN dnf install -y \
     python3.12 \
+    git \
     openblas \
     openblas-devel \
     && dnf clean all

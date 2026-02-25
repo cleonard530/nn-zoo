@@ -11,19 +11,15 @@ from torch.utils.data import DataLoader
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from data.datasets import get_dataloader, get_mnist
 from models.gan import GAN
-from utils import get_device, get_run_id, log_epoch, save_checkpoint, save_training_metadata
+from utils import add_common_train_args, get_device, get_run_id, log_epoch, save_checkpoint, save_training_metadata
 
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--data_dir", type=str, default="./data")
-    p.add_argument("--epochs", type=int, default=30)
-    p.add_argument("--batch_size", type=int, default=128)
+    add_common_train_args(p, default_save_dir="./weights/gan", default_epochs=30)
     p.add_argument("--lr_g", type=float, default=1e-3)
     p.add_argument("--lr_d", type=float, default=2e-4)
     p.add_argument("--latent_dim", type=int, default=64)
-    p.add_argument("--save_dir", type=str, default="./weights/gan")
-    p.add_argument("--use_cuda", action=argparse.BooleanOptionalAction, default=True, help="Use CUDA if available")
     args = p.parse_args()
     device = get_device(use_cuda=args.use_cuda)
     run_id = get_run_id()

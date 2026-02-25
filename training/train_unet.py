@@ -11,17 +11,12 @@ from torch.utils.data import DataLoader
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from data.datasets import get_dataloader, get_mnist_segmentation
 from models.unet import UNet
-from utils import get_device, get_run_id, log_epoch, save_checkpoint, save_training_metadata
+from utils import add_common_train_args, get_device, get_run_id, log_epoch, save_epoch_checkpoint, save_training_metadata, train_epoch, validation_loss
 
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--data_dir", type=str, default="./data")
-    p.add_argument("--epochs", type=int, default=15)
-    p.add_argument("--batch_size", type=int, default=64)
-    p.add_argument("--lr", type=float, default=1e-3)
-    p.add_argument("--save_dir", type=str, default="./weights/unet")
-    p.add_argument("--use_cuda", action=argparse.BooleanOptionalAction, default=True, help="Use CUDA if available")
+    add_common_train_args(p, default_save_dir="./weights/unet", default_epochs=15, default_batch_size=64)
     args = p.parse_args()
     device = get_device(use_cuda=args.use_cuda)
     run_id = get_run_id()
@@ -35,39 +30,23 @@ def main() -> None:
     opt = torch.optim.Adam(model.parameters(), lr=args.lr)
     criterion = nn.BCEWithLogitsLoss()
 
+    def loss_fn(m, batch, dev):
+        x, mask = batch[0].to(dev), batch[1].to(dev)
+        return criterion(m(x), mask)
+
     best_loss = float("inf")
     for epoch in range(1, args.epochs + 1):
-        model.train()
-        train_loss = 0.0
-        for x, mask in train_loader:
-            x, mask = x.to(device), mask.to(device)
-            opt.zero_grad()
-            logits = model(x)
-            loss = criterion(logits, mask)
-            loss.backward()
-            opt.step()
-            train_loss += loss.item()
-        train_loss /= len(train_loader)
-
-        model.eval()
-        val_loss = 0.0
-        with torch.no_grad():
-            for x, mask in val_loader:
-                x, mask = x.to(device), mask.to(device)
-                logits = model(x)
-                val_loss += criterion(logits, mask).item()
-        val_loss /= len(val_loader)
+        train_loss = train_epoch(model, train_loader, device, opt, loss_fn)
+        def batch_loss(m, batch, dev):
+            x, mask = batch[0].to(dev), batch[1].to(dev)
+            return criterion(m(x), mask)
+        val_loss = validation_loss(model, val_loader, device, batch_loss)
         log_epoch(epoch, {"train_loss": train_loss, "val_loss": val_loss})
 
         is_best = val_loss < best_loss
         if is_best:
             best_loss = val_loss
-        save_checkpoint(
-            {"epoch": epoch, "model_state_dict": model.state_dict(), "val_loss": val_loss},
-            Path(args.save_dir) / f"last_{run_id}.pt",
-            is_best=is_best,
-            best_path=Path(args.save_dir) / f"best_{run_id}.pt",
-        )
+        save_epoch_checkpoint(model, epoch, val_loss, "val_loss", args.save_dir, run_id, is_best)
 
     save_training_metadata(
         args.save_dir,

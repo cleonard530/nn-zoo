@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from data.datasets import get_dataloader, get_mnist
 from models.vae import VAE
-from utils import get_device, get_run_id, log_epoch, save_checkpoint, save_training_metadata
+from utils import add_common_train_args, get_device, get_run_id, log_epoch, save_epoch_checkpoint, save_training_metadata, train_epoch, validation_loss
 
 
 def vae_loss(recon: torch.Tensor, x: torch.Tensor, mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
@@ -22,13 +22,8 @@ def vae_loss(recon: torch.Tensor, x: torch.Tensor, mu: torch.Tensor, logvar: tor
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--data_dir", type=str, default="./data")
-    p.add_argument("--epochs", type=int, default=20)
-    p.add_argument("--batch_size", type=int, default=128)
-    p.add_argument("--lr", type=float, default=1e-3)
+    add_common_train_args(p, default_save_dir="./weights/vae", default_epochs=20)
     p.add_argument("--latent_dim", type=int, default=20)
-    p.add_argument("--save_dir", type=str, default="./weights/vae")
-    p.add_argument("--use_cuda", action=argparse.BooleanOptionalAction, default=True, help="Use CUDA if available")
     args = p.parse_args()
     device = get_device(use_cuda=args.use_cuda)
     run_id = get_run_id()
@@ -41,39 +36,25 @@ def main() -> None:
     model = VAE(input_size=784, latent_dim=args.latent_dim).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=args.lr)
 
+    def loss_fn(m, batch, dev):
+        x = batch[0].to(dev).view(batch[0].size(0), -1)
+        recon, mu, logvar = m(x.view(x.size(0), 1, 28, 28))
+        return vae_loss(recon, x, mu, logvar)
+
     best_loss = float("inf")
     for epoch in range(1, args.epochs + 1):
-        model.train()
-        train_loss = 0.0
-        for x, _ in train_loader:
-            x = x.to(device).view(x.size(0), -1)
-            opt.zero_grad()
-            recon, mu, logvar = model(x.view(x.size(0), 1, 28, 28))
-            loss = vae_loss(recon, x, mu, logvar)
-            loss.backward()
-            opt.step()
-            train_loss += loss.item()
-        train_loss /= len(train_loader)
-
-        model.eval()
-        val_loss = 0.0
-        with torch.no_grad():
-            for x, _ in val_loader:
-                x = x.to(device).view(x.size(0), -1)
-                recon, mu, logvar = model(x.view(x.size(0), 1, 28, 28))
-                val_loss += vae_loss(recon, x, mu, logvar).item()
-        val_loss /= len(val_loader)
+        train_loss = train_epoch(model, train_loader, device, opt, loss_fn)
+        def batch_loss(m, batch, dev):
+            x = batch[0].to(dev).view(batch[0].size(0), -1)
+            recon, mu, logvar = m(x.view(x.size(0), 1, 28, 28))
+            return vae_loss(recon, x, mu, logvar)
+        val_loss = validation_loss(model, val_loader, device, batch_loss)
         log_epoch(epoch, {"train_loss": train_loss, "val_loss": val_loss})
 
         is_best = val_loss < best_loss
         if is_best:
             best_loss = val_loss
-        save_checkpoint(
-            {"epoch": epoch, "model_state_dict": model.state_dict(), "val_loss": val_loss},
-            Path(args.save_dir) / f"last_{run_id}.pt",
-            is_best=is_best,
-            best_path=Path(args.save_dir) / f"best_{run_id}.pt",
-        )
+        save_epoch_checkpoint(model, epoch, val_loss, "val_loss", args.save_dir, run_id, is_best)
 
     save_training_metadata(
         args.save_dir,

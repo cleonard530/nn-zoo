@@ -1,11 +1,11 @@
-"""Tests for utils.device."""
+"""Tests for device selection (utils.training)."""
 
 import torch
 
 import pytest
 
 # conftest adds repo root to path
-from utils.device import get_device
+from utils import get_device
 
 
 def test_get_device_returns_device_type() -> None:

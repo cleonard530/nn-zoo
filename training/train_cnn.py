@@ -11,18 +11,13 @@ from torch.utils.data import DataLoader
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from data.datasets import get_cifar10, get_dataloader, get_mnist
 from models.cnn import CNN
-from utils import get_device, get_run_id, log_epoch, save_checkpoint, save_training_metadata, validation_accuracy
+from utils import add_common_train_args, get_device, get_run_id, log_epoch, save_epoch_checkpoint, save_training_metadata, train_epoch, validation_accuracy
 
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--data_dir", type=str, default="./data")
+    add_common_train_args(p, default_save_dir="./weights/cnn", default_epochs=15)
     p.add_argument("--cifar", action="store_true", help="Use CIFAR-10 instead of MNIST")
-    p.add_argument("--epochs", type=int, default=15)
-    p.add_argument("--batch_size", type=int, default=128)
-    p.add_argument("--lr", type=float, default=1e-3)
-    p.add_argument("--save_dir", type=str, default="./weights/cnn")
-    p.add_argument("--use_cuda", action=argparse.BooleanOptionalAction, default=True, help="Use CUDA if available")
     args = p.parse_args()
     device = get_device(use_cuda=args.use_cuda)
     run_id = get_run_id()
@@ -42,32 +37,20 @@ def main() -> None:
     opt = torch.optim.Adam(model.parameters(), lr=args.lr)
     criterion = nn.CrossEntropyLoss()
 
+    def loss_fn(m, batch, dev):
+        x, y = batch[0].to(dev), batch[1].to(dev)
+        return criterion(m(x), y)
+
     best_acc = 0.0
     for epoch in range(1, args.epochs + 1):
-        model.train()
-        train_loss = 0.0
-        for x, y in train_loader:
-            x, y = x.to(device), y.to(device)
-            opt.zero_grad()
-            logits = model(x)
-            loss = criterion(logits, y)
-            loss.backward()
-            opt.step()
-            train_loss += loss.item()
-        train_loss /= len(train_loader)
-
+        train_loss = train_epoch(model, train_loader, device, opt, loss_fn)
         val_acc = validation_accuracy(model, val_loader, device)
         log_epoch(epoch, {"train_loss": train_loss, "val_acc": val_acc})
 
         is_best = val_acc > best_acc
         if is_best:
             best_acc = val_acc
-        save_checkpoint(
-            {"epoch": epoch, "model_state_dict": model.state_dict(), "val_acc": val_acc},
-            Path(args.save_dir) / f"last_{run_id}.pt",
-            is_best=is_best,
-            best_path=Path(args.save_dir) / f"best_{run_id}.pt",
-        )
+        save_epoch_checkpoint(model, epoch, val_acc, "val_acc", args.save_dir, run_id, is_best)
 
     save_training_metadata(
         args.save_dir,
